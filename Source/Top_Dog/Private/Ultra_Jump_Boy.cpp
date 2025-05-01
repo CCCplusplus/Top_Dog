@@ -53,14 +53,39 @@ void AUltra_Jump_Boy::BeginPlay()
 		MoveComp->BrakingFrictionFactor = 0.0f;
 	}
 
-
-	// 1) Añadir el Mapping Context al Enhanced Input Subsystem
 	if (APlayerController* PC = Cast<APlayerController>(GetController()))
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem =
 			ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
 		{
 			Subsystem->AddMappingContext(DefaultMappingContext, 0);
+		}
+	}
+
+	if (TimerWidgetClass)
+	{
+		TimerWidget = CreateWidget<UUserWidget>(GetWorld(), TimerWidgetClass);
+		if (TimerWidget)
+		{
+			TimerWidget->AddToViewport();
+			TimerTextBlock = Cast<UTextBlock>(TimerWidget->GetWidgetFromName(TEXT("Timer"))); // nombre exacto en UMG
+			RefreshTimerUI();
+
+			// cada segundo
+			GetWorldTimerManager().SetTimer(TimerHandle, this, &AUltra_Jump_Boy::UpdateTimer, 1.0f, true);
+		}
+	}
+
+	if (HeightWidgetClass)
+	{
+		HeightWidget = CreateWidget<UUserWidget>(GetWorld(), HeightWidgetClass);
+		if (HeightWidget)
+		{
+			HeightWidget->AddToViewport();
+			HeightTextBlock = Cast<UTextBlock>(HeightWidget->GetWidgetFromName(TEXT("HeightValue"))); // nombre exacto en UMG
+			// valor inicial opcional:
+			if (HeightTextBlock)
+				HeightTextBlock->SetText(FText::FromString(TEXT("0.00 M")));
 		}
 	}
 	
@@ -77,6 +102,15 @@ void AUltra_Jump_Boy::Tick(float DeltaTime)
 	// Nueva posición de la cámara: misma X/Y, pero Z adaptada
 	FVector NewCamLoc = InitialCameraLocation + FVector(0.f, 0.f, DeltaZ);
 	SpringArm->SetWorldLocation(NewCamLoc);
+
+	if (HeightTextBlock)
+	{
+		float DeltaCm = CurrentZ - InitialCharacterZ;
+		float Meters = DeltaCm * 0.01f;
+		HeightTextBlock->SetText(
+			FText::FromString(FString::Printf(TEXT("%.2f M"), Meters))
+		);
+	}
 }
 
 // Called to bind functionality to input
@@ -93,6 +127,28 @@ void AUltra_Jump_Boy::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 		
 		EIC->BindAction(TT_Jump, ETriggerEvent::Started, this, &AUltra_Jump_Boy::JumpAction);
 	}
+}
+
+void AUltra_Jump_Boy::UpdateTimer()
+{
+	RemainingTime = FMath::Max(RemainingTime - 1, 0);
+	RefreshTimerUI();
+
+	if (RemainingTime == 0)
+	{
+		GetWorldTimerManager().ClearTimer(TimerHandle);
+		// Poner resultados aqui. 
+		// por ahora detenemos movimiento y salto
+		GetCharacterMovement()->StopMovementImmediately();
+		GetCharacterMovement()->SetMovementMode(MOVE_None);
+
+	}
+}
+
+void AUltra_Jump_Boy::RefreshTimerUI()
+{
+	if (TimerTextBlock)
+		TimerTextBlock->SetText(FText::AsNumber(RemainingTime));
 }
 
 void AUltra_Jump_Boy::Move(const FInputActionValue& Value)

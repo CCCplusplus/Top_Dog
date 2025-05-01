@@ -14,6 +14,9 @@
 #include "InputAction.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "Blueprint/UserWidget.h"
+#include "Components/TextBlock.h"
+#include "TimerManager.h"
 #include "Ultra_Jump_Boy.generated.h"
 
 
@@ -56,10 +59,7 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
 	USpringArmComponent* SpringArm;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
-	UCameraComponent* Camera;
-
-	bool bIsOnLeftLane = true; // Is the character on the left lane?  
-
+	UCameraComponent* Camera; 
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputMappingContext* DefaultMappingContext;
@@ -69,6 +69,31 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* TT_Jump;
+
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<UUserWidget> TimerWidgetClass; 
+
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<UUserWidget> HeightWidgetClass;
+
+	UPROPERTY()
+	UUserWidget* TimerWidget;
+
+	UPROPERTY()
+	UUserWidget* HeightWidget;
+
+	UPROPERTY()
+	UTextBlock* TimerTextBlock;
+
+	UPROPERTY()
+	UTextBlock* HeightTextBlock;
+
+	FTimerHandle     TimerHandle;
+	int32            RemainingTime = 45;
+
+	// Helpers UI
+	void UpdateTimer();                  
+	void RefreshTimerUI();               
 
 	
 	void Move(const FInputActionValue& Value);
