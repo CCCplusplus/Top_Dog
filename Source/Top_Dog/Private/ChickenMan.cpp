@@ -153,4 +153,10 @@ void AChickenMan::TurnAction(const FInputActionValue& Value)
 			}
 		}
 	}
+
+	FTimerHandle DelayHandle;
+	GetWorldTimerManager().SetTimer(DelayHandle, [this]()
+		{
+			UGameplayStatics::OpenLevel(this, FName("ThirdPersonMap"));
+		}, 2.0f, false);
 }

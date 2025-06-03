@@ -2,6 +2,7 @@
 
 
 #include "Ultra_Jump_Boy.h"
+#include <Kismet/GameplayStatics.h>
 
 // Sets default values
 AUltra_Jump_Boy::AUltra_Jump_Boy()
@@ -141,6 +142,14 @@ void AUltra_Jump_Boy::UpdateTimer()
 		// por ahora detenemos movimiento y salto
 		GetCharacterMovement()->StopMovementImmediately();
 		GetCharacterMovement()->SetMovementMode(MOVE_None);
+
+		//agregar delay de 2 segundos y cambiar de nivel a "ThirdPersonMap"
+		// utilizando,UGameplayStatics::OpenLevel()
+		FTimerHandle DelayHandle;
+		GetWorldTimerManager().SetTimer(DelayHandle, [this]()
+			{
+				UGameplayStatics::OpenLevel(this, FName("ThirdPersonMap"));
+			}, 2.0f, false);
 
 	}
 }
