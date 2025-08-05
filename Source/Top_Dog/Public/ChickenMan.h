@@ -67,6 +67,16 @@ public:
 	AActor* CrusherActor;
 
 
+	UPROPERTY(BlueprintReadOnly)
+	FName PlayerID;
+
+	UPROPERTY(BlueprintReadOnly)
+	float CurrentDistanceMeters = 0.f;
+
+	UPROPERTY(BlueprintReadOnly)
+	bool bEliminated = false;
+
+
 	UPROPERTY()
 	UUserWidget* DistanceWidget;
 
@@ -74,10 +84,21 @@ public:
 	UPROPERTY()
 	UTextBlock* DistanceTextBlock;
 
+	UPROPERTY(BlueprintReadOnly)
+	bool bIsBot = false;
+
 	bool hasturned;
 
 	float InitialCharacterZ;
 
 	void TurnAction(const FInputActionValue& Value);
 
+	void CheckDistance(float DistM);
+
+	UFUNCTION(BlueprintCallable, Category = "State")
+	void Eliminate();
+
+	APawn* FindNearestCrusherPawn() const;
+
+	int32 GetLaneIndex() const;
 };

@@ -4,6 +4,7 @@
 #include "ChickenMan.h"
 #include "AIController.h"
 #include "Kismet/GameplayStatics.h"
+#include "AGMChicken_Game.h"
 
 // Sets default values
 AChickenMan::AChickenMan()
@@ -33,6 +34,9 @@ AChickenMan::AChickenMan()
 	Camera->SetupAttachment(SpringArm, USpringArmComponent::SocketName);
 	Camera->bUsePawnControlRotation = false;
 	Camera->SetAbsolute(false, true, false);
+
+	bEliminated = false;
+	CurrentDistanceMeters = 0.f;
 }
 
 // Called when the game starts or when spawned
@@ -40,14 +44,30 @@ void AChickenMan::BeginPlay()
 {
 	Super::BeginPlay();
 
-	//Crusher is = to the actor with the tag "Crusher"
-	TArray<AActor*> FoundActors;
-	UGameplayStatics::GetAllActorsWithTag(GetWorld(), TEXT("Crusher"), FoundActors);
-	if (FoundActors.Num() > 0)
-		CrusherActor = FoundActors[0];
-	else 
-		UE_LOG(LogTemp, Warning, TEXT("Crusher actor not found"));
+	if (!CrusherActor)
+	{
+		CrusherActor = FindNearestCrusherPawn();
+		if (CrusherActor) 
+		{
+			UE_LOG(LogTemp, Warning, TEXT("%s linked to %s"),
+				*GetName(), *CrusherActor->GetName());
+		}
+		else
+			UE_LOG(LogTemp, Error, TEXT("%s: NO Crusher found"), *GetName());
+	}
+
 	
+	if (bIsBot)                      
+	{
+		const float Delay = FMath::FRandRange(5.f, 10.f);
+		FTimerHandle Dummy;
+		GetWorldTimerManager().SetTimer(Dummy, [this]()
+			{
+				if (!hasturned)          
+					TurnAction(FInputActionValue());
+			},
+			Delay, false);
+	}
 
 	if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
 	{
@@ -60,15 +80,16 @@ void AChickenMan::BeginPlay()
 
 	if (DistanceWidgetClass)
 	{
-		DistanceWidget = CreateWidget<UUserWidget>(GetWorld(), DistanceWidgetClass);
-		if (DistanceWidget)
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
 		{
-			DistanceWidget->AddToViewport();
+			DistanceWidget = CreateWidget<UUserWidget>(PC, DistanceWidgetClass);
+			if (DistanceWidget)
+			{
 
-			// 2) Buscamos el TextBlock por nombre (tal como lo marcaste en UMG)
-			DistanceTextBlock = Cast<UTextBlock>(
-				DistanceWidget->WidgetTree->FindWidget(TEXT("HeightValue"))
-			);
+				DistanceWidget->AddToPlayerScreen(0);
+				DistanceTextBlock = Cast<UTextBlock>(
+					DistanceWidget->WidgetTree->FindWidget(TEXT("HeightValue")));
+			}
 		}
 	}
 }
@@ -78,7 +99,7 @@ void AChickenMan::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	if (!DistanceTextBlock || !CrusherActor)
+	if (!DistanceTextBlock || !CrusherActor || bEliminated)
 		return;
 
 	const FVector PlayerLoc = GetActorLocation();
@@ -91,9 +112,8 @@ void AChickenMan::Tick(float DeltaTime)
 		
 		FVector OutPoint;
 		if (Prim->GetClosestPointOnCollision(PlayerLoc, OutPoint))
-		{
 			ClosestPoint = OutPoint;
-		}
+
 		
 	}
 
@@ -104,6 +124,9 @@ void AChickenMan::Tick(float DeltaTime)
 
 	
 	DistanceTextBlock->SetText(FText::AsNumber(Rounded));
+
+	CurrentDistanceMeters = DistM;
+	CheckDistance(DistM);
 }
 
 // Called to bind functionality to input
@@ -126,7 +149,6 @@ void AChickenMan::TurnAction(const FInputActionValue& Value)
 
 	FRotator RelRot = GetMesh()->GetRelativeRotation();
 
-	// 2) Calcular nuevo yaw: si estaba en -90, pasa a +90; si no, pasa a -90
 	const float NewYaw = FMath::IsNearlyEqual(RelRot.Yaw, -90.f, 1.f)
 		? 90.f
 		: -90.f;
@@ -134,29 +156,135 @@ void AChickenMan::TurnAction(const FInputActionValue& Value)
 	RelRot.Yaw = NewYaw;
 	GetMesh()->SetRelativeRotation(RelRot);
 
-	// 4) Avanzar unos pasos
 	FVector Dir = GetActorForwardVector();
 	LaunchCharacter(-Dir * 400.f, true, true);
 
 	hasturned = true;
 
-	if (CrusherActor)
+	if (!CrusherActor) 
 	{
-		if (APawn* CrusherPawn = Cast<APawn>(CrusherActor))
+		UE_LOG(LogTemp, Error, TEXT("%s: No Crusher assigned"), *GetName());
+		return;
+	}
+
+	/*if (APawn* CrusherPawn = Cast<APawn>(CrusherActor))
+	{
+		if (AAIController* AICon = Cast<AAIController>(CrusherPawn->GetController()))
+			if (UBlackboardComponent* BB = AICon->GetBlackboardComponent())
+				BB->SetValueAsBool(TEXT("StopMoving"), true);
+	}*/
+
+	CrusherActor->Destroy();
+
+
+	//FTimerHandle DelayHandle;
+	//GetWorldTimerManager().SetTimer(DelayHandle, [this]()
+	//	{
+	//		UGameplayStatics::OpenLevel(this, FName("ThirdPersonMap"));
+	//	}, 2.0f, false);
+
+}
+
+void AChickenMan::CheckDistance(float DistM)
+{
+	if (DistM <= 0.0f)
+		Eliminate();
+
+}
+
+void AChickenMan::Eliminate()
+{
+	if (bEliminated) return;
+	bEliminated = true;
+
+	UE_LOG(LogTemp, Warning, TEXT("Eliminated!"));
+
+
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		DisableInput(PC);
+	{
+		APlayerController* PC0 = UGameplayStatics::GetPlayerController(this, 0);
+		if (PC0)
 		{
-			if (AAIController* AICon = Cast<AAIController>(CrusherPawn->GetController()))
-			{
-				if (UBlackboardComponent* BB = AICon->GetBlackboardComponent())
-				{
-					BB->SetValueAsBool(TEXT("StopMoving"), true);
-				}
-			}
+			FVector CamLoc; FRotator CamRot;
+			PC0->GetPlayerViewPoint(CamLoc, CamRot);
+
+
+			FActorSpawnParameters Params;
+			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+			ACameraActor* StaticCam = GetWorld()->SpawnActor<ACameraActor>(CamLoc, CamRot, Params);
+
+
+			if (StaticCam && PC0->PlayerCameraManager)
+				StaticCam->GetCameraComponent()->FieldOfView =
+				PC0->PlayerCameraManager->GetFOVAngle();
+
+
+			PC0->SetViewTargetWithBlend(StaticCam, 0.0f);
 		}
 	}
 
-	FTimerHandle DelayHandle;
-	GetWorldTimerManager().SetTimer(DelayHandle, [this]()
-		{
-			UGameplayStatics::OpenLevel(this, FName("ThirdPersonMap"));
-		}, 2.0f, false);
+
+	{
+		FVector CamLoc; FRotator CamRot;
+		if (APlayerController* PC0 = UGameplayStatics::GetPlayerController(this, 0))
+			PC0->GetPlayerViewPoint(CamLoc, CamRot);
+
+		const FVector DirToCam = (CamLoc - GetActorLocation()).GetSafeNormal();
+		const FVector LaunchVel = DirToCam * 2000.f + FVector(0.f, 0.f, 400.f);
+		LaunchCharacter(LaunchVel, true, true);
+	}
+
+
+	{
+		FTimerHandle Tmp;
+		GetWorldTimerManager().SetTimer(
+			Tmp,
+			[this]()
+			{
+				SetActorEnableCollision(false);
+				SetActorHiddenInGame(true);
+
+				if (AAGMChicken_Game* GM = GetWorld()->GetAuthGameMode<AAGMChicken_Game>())
+					GM->OnPlayerEliminated(this);
+			},
+			0.5f,
+			false
+		);
+	}
 }
+
+APawn* AChickenMan::FindNearestCrusherPawn() const
+{
+	const int32 Lane = GetLaneIndex();
+	if (Lane == 0) return nullptr;
+
+	const FName WantedTag(*FString::Printf(TEXT("Crusher_%d"), Lane));
+
+	TArray<AActor*> Found;
+	UGameplayStatics::GetAllActorsWithTag(GetWorld(), WantedTag, Found);
+
+	for (AActor* A : Found)
+		if (APawn* P = Cast<APawn>(A))
+			return P;
+
+	return nullptr;
+}
+
+
+int32 AChickenMan::GetLaneIndex() const
+{
+	const FString Name = GetName();
+	const int32   Pos = Name.Find(TEXT("_C_"), ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+
+	if (Pos != INDEX_NONE)
+	{
+		const int32 X = FCString::Atoi(*Name.Mid(Pos + 3));
+		const int32 N = X + 1;                             
+		if (N >= 1 && N <= 4) return N;
+	}
+	return 0;
+}
+
+
+

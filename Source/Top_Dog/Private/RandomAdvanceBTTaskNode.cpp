@@ -5,6 +5,7 @@
 
 URandomAdvanceBTTaskNode::URandomAdvanceBTTaskNode()
 {
+    bCreateNodeInstance = true;
 }
 
 EBTNodeResult::Type URandomAdvanceBTTaskNode::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
