@@ -41,5 +41,9 @@ protected:
 
 private:
 
+	bool        bMiniGameEnded = false;
+
+	FTimerHandle EndHandle;
+
 	void       EndMiniGame();
 };

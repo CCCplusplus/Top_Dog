@@ -57,17 +57,7 @@ void AChickenMan::BeginPlay()
 	}
 
 	
-	if (bIsBot)                      
-	{
-		const float Delay = FMath::FRandRange(5.f, 10.f);
-		FTimerHandle Dummy;
-		GetWorldTimerManager().SetTimer(Dummy, [this]()
-			{
-				if (!hasturned)          
-					TurnAction(FInputActionValue());
-			},
-			Delay, false);
-	}
+	activated = false;
 
 	if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
 	{
@@ -82,15 +72,20 @@ void AChickenMan::BeginPlay()
 	{
 		if (APlayerController* PC = Cast<APlayerController>(GetController()))
 		{
-			DistanceWidget = CreateWidget<UUserWidget>(PC, DistanceWidgetClass);
-			if (DistanceWidget)
+			if (DistanceWidgetClass)
 			{
+				DistanceWidget = CreateWidget<UUserWidget>(PC, DistanceWidgetClass);
+				if (DistanceWidget)
+				{
 
-				DistanceWidget->AddToPlayerScreen(0);
-				DistanceTextBlock = Cast<UTextBlock>(
-					DistanceWidget->WidgetTree->FindWidget(TEXT("HeightValue")));
+					DistanceWidget->AddToViewport(10);
+
+					DistanceTextBlock = Cast<UTextBlock>(
+						DistanceWidget->WidgetTree->FindWidget(TEXT("HeightValue")));
+				}
 			}
 		}
+
 	}
 }
 
@@ -98,6 +93,22 @@ void AChickenMan::BeginPlay()
 void AChickenMan::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	if (bIsBot && !activated)
+	{
+		activated = true;
+
+		UE_LOG(LogTemp, Warning, TEXT("Bot %s activated!"), *GetName());
+
+		const float Delay = FMath::FRandRange(10.f, 16.f);
+		FTimerHandle Dummy;
+		GetWorldTimerManager().SetTimer(Dummy, [this]()
+			{
+				if (!hasturned)
+					TurnAction(FInputActionValue());
+			},
+			Delay, false);
+	}
 
 	if (!DistanceTextBlock || !CrusherActor || bEliminated)
 		return;
@@ -127,6 +138,8 @@ void AChickenMan::Tick(float DeltaTime)
 
 	CurrentDistanceMeters = DistM;
 	CheckDistance(DistM);
+
+	
 }
 
 // Called to bind functionality to input
@@ -161,20 +174,12 @@ void AChickenMan::TurnAction(const FInputActionValue& Value)
 
 	hasturned = true;
 
-	if (!CrusherActor) 
-	{
-		UE_LOG(LogTemp, Error, TEXT("%s: No Crusher assigned"), *GetName());
-		return;
-	}
-
-	/*if (APawn* CrusherPawn = Cast<APawn>(CrusherActor))
+	if (APawn* CrusherPawn = Cast<APawn>(CrusherActor))
 	{
 		if (AAIController* AICon = Cast<AAIController>(CrusherPawn->GetController()))
 			if (UBlackboardComponent* BB = AICon->GetBlackboardComponent())
 				BB->SetValueAsBool(TEXT("StopMoving"), true);
-	}*/
-
-	CrusherActor->Destroy();
+	}
 
 
 	//FTimerHandle DelayHandle;
@@ -201,27 +206,22 @@ void AChickenMan::Eliminate()
 
 
 	if (APlayerController* PC = Cast<APlayerController>(GetController()))
-		DisableInput(PC);
 	{
-		APlayerController* PC0 = UGameplayStatics::GetPlayerController(this, 0);
-		if (PC0)
-		{
-			FVector CamLoc; FRotator CamRot;
-			PC0->GetPlayerViewPoint(CamLoc, CamRot);
+		FVector CamLoc; FRotator CamRot;
+		PC->GetPlayerViewPoint(CamLoc, CamRot);
 
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride =
+			ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-			FActorSpawnParameters Params;
-			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-			ACameraActor* StaticCam = GetWorld()->SpawnActor<ACameraActor>(CamLoc, CamRot, Params);
+		ACameraActor* StaticCam =
+			GetWorld()->SpawnActor<ACameraActor>(CamLoc, CamRot, Params);
 
+		if (StaticCam && PC->PlayerCameraManager)
+			StaticCam->GetCameraComponent()->FieldOfView =
+			PC->PlayerCameraManager->GetFOVAngle();
 
-			if (StaticCam && PC0->PlayerCameraManager)
-				StaticCam->GetCameraComponent()->FieldOfView =
-				PC0->PlayerCameraManager->GetFOVAngle();
-
-
-			PC0->SetViewTargetWithBlend(StaticCam, 0.0f);
-		}
+		PC->SetViewTargetWithBlend(StaticCam, 0.f);
 	}
 
 

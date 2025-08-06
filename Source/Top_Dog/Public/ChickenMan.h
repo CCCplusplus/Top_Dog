@@ -84,10 +84,12 @@ public:
 	UPROPERTY()
 	UTextBlock* DistanceTextBlock;
 
-	UPROPERTY(BlueprintReadOnly)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	bool bIsBot = false;
 
 	bool hasturned;
+
+	bool activated = false;
 
 	float InitialCharacterZ;
 

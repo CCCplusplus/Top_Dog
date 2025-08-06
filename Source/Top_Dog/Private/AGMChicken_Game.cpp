@@ -57,8 +57,10 @@ static int32 GetLaneFromCrusher(const AActor* A)
 void AAGMChicken_Game::BeginPlay()
 {
     Super::BeginPlay();
+
     UWorld* World = GetWorld();
     if (!World) return;
+
 
     FTransform LaneTransforms[4];
     bool       bLaneFound[4] = { false,false,false,false };
@@ -66,60 +68,43 @@ void AAGMChicken_Game::BeginPlay()
     for (TActorIterator<APlayerStart> It(World); It; ++It)
     {
         const int32 Lane = GetLaneFromStart(*It);
-        if (Lane != INDEX_NONE && Lane < 4)
+        if (Lane != INDEX_NONE)
         {
             LaneTransforms[Lane] = It->GetActorTransform();
             bLaneFound[Lane] = true;
         }
     }
+
     for (int32 i = 0; i < 4; ++i)
         if (!bLaneFound[i])
             LaneTransforms[i] = FTransform(FVector(i * 300.f, 0.f, 300.f));
 
+    
     AActor* LaneCrushers[4] = { nullptr,nullptr,nullptr,nullptr };
-    {
-        TArray<AActor*> Found;
-        UGameplayStatics::GetAllActorsWithTag(World, TEXT("Crusher_1"), Found);
-    }
-
     for (TActorIterator<AActor> It(World); It; ++It)
     {
         const int32 Lane = GetLaneFromCrusher(*It);
-        if (Lane != INDEX_NONE && Lane < 4)
+        if (Lane != INDEX_NONE)
             LaneCrushers[Lane] = *It;
-        
     }
 
-    const int32 NumHumans = FMath::Clamp(ReadNumPlayersFromGI(World), 1, 4);
 
+    const int32 NumHumans = FMath::Clamp(ReadNumPlayersFromGI(World), 1, 4);
+    UE_LOG(LogTemp, Warning, TEXT("NumHumans = %d"), NumHumans);
 
     AllPlayers.Empty();
 
+
     for (int32 i = 0; i < 4; ++i)
     {
-        APlayerController* PC = nullptr;
-
-        if (i == 0)
-        {
-            PC = UGameplayStatics::GetPlayerController(World, 0);
-            if (!PC)
-                PC = UGameplayStatics::CreatePlayer(World, 0, true);
-
-        }
-        else
-        {
-            PC = UGameplayStatics::GetPlayerController(World, i);
-            if (!PC)
-                PC = UGameplayStatics::CreatePlayer(World, i, true);
-        }
-
+ 
+        APlayerController* PC = UGameplayStatics::GetPlayerController(World, i);
+        if (!PC)
+            PC = UGameplayStatics::CreatePlayer(World, i, true);
         if (!PC) continue;
 
-
-        if (APawn* OldPawn = PC->GetPawn())
-            OldPawn->Destroy();
-        
-
+        if (APawn* Old = PC->GetPawn())
+            Old->Destroy();
 
         AChickenMan* Pawn = World->SpawnActor<AChickenMan>(ChickenManClass,
             LaneTransforms[i]);
@@ -128,32 +113,26 @@ void AAGMChicken_Game::BeginPlay()
         PC->Possess(Pawn);
         PC->SetViewTarget(Pawn);
 
+        const bool bIsHuman = (i < NumHumans);
 
-        Pawn->PlayerID = FName(*FString::Printf(TEXT("Player_%d"), i + 1));
-
-        Pawn->Tags.Add(Pawn->PlayerID);
-
-        const bool bIsBot = (i >= NumHumans);
-        Pawn->bIsBot = bIsBot;
-        if (bIsBot)
+        if (bIsHuman)
+            PC->EnableInput(PC);
+        else
             PC->DisableInput(PC);
 
+        Pawn->bIsBot = !bIsHuman;
 
+        Pawn->PlayerID = FName(*FString::Printf(TEXT("Player_%d"), i + 1));
+        Pawn->Tags.Add(Pawn->PlayerID);
 
         if (LaneCrushers[i])
         {
             Pawn->CrusherActor = LaneCrushers[i];
 
             if (APawn* CrusherPawn = Cast<APawn>(LaneCrushers[i]))
-            {
                 if (AAIController* AIC = Cast<AAIController>(CrusherPawn->GetController()))
-                {
-                    UBlackboardComponent* BB = AIC->GetBlackboardComponent();
-                    if (BB)
+                    if (UBlackboardComponent* BB = AIC->GetBlackboardComponent())
                         BB->SetValueAsObject(TEXT("Player"), Pawn);
-                    
-                }
-            }
         }
         else
         {
@@ -165,8 +144,11 @@ void AAGMChicken_Game::BeginPlay()
 }
 
 
+
 void AAGMChicken_Game::OnPlayerEliminated(AChickenMan*)
 {
+    if (bMiniGameEnded) return;
+
     const bool bDone = Algo::AllOf(AllPlayers, [](AChickenMan* P)
         {
             return !IsValid(P) || P->bEliminated || P->hasturned;
@@ -174,12 +156,15 @@ void AAGMChicken_Game::OnPlayerEliminated(AChickenMan*)
 
     if (bDone)
         EndMiniGame();
-
 }
+
 
 
 void AAGMChicken_Game::EndMiniGame()
 {
+    if (bMiniGameEnded) return;
+    bMiniGameEnded = true;
+
     AChickenMan* Winner = nullptr;
     float        MaxDist = -FLT_MAX;
 
@@ -207,9 +192,15 @@ void AAGMChicken_Game::EndMiniGame()
         }
     }
 
-    FTimerHandle DelayHandle;
-    GetWorldTimerManager().SetTimer(DelayHandle, [this]()
+    GetWorldTimerManager().ClearTimer(EndHandle);
+
+    GetWorldTimerManager().SetTimer(
+        EndHandle,
+        [this]()
         {
             UGameplayStatics::OpenLevel(this, FName("ThirdPersonMap"));
-        }, 2.0f, false);
+        },
+        2.0f,
+        false
+    );
 }
