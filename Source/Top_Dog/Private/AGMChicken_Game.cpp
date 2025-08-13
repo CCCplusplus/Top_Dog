@@ -158,6 +158,19 @@ void AAGMChicken_Game::OnPlayerEliminated(AChickenMan*)
         EndMiniGame();
 }
 
+void AAGMChicken_Game::NotifyPlayerFinished(AChickenMan* FinishedPawn)
+{
+    if (bMiniGameEnded) return;
+
+    const bool bDone = Algo::AllOf(AllPlayers, [](AChickenMan* P)
+        {
+            return !IsValid(P) || P->bEliminated || P->hasturned;
+        });
+
+    if (bDone)
+        EndMiniGame();
+}
+
 
 
 void AAGMChicken_Game::EndMiniGame()
@@ -166,29 +179,36 @@ void AAGMChicken_Game::EndMiniGame()
     bMiniGameEnded = true;
 
     AChickenMan* Winner = nullptr;
-    float        MaxDist = -FLT_MAX;
+    float        MinDist = FLT_MAX;          //buscamos la menor distancia
 
     for (AChickenMan* P : AllPlayers)
     {
-        if (!IsValid(P) || P->bEliminated) continue;
-        if (P->CurrentDistanceMeters > 0.f && P->CurrentDistanceMeters > MaxDist)
+        if (!IsValid(P) || P->bEliminated)          // descartados
+            continue;
+
+        if (P->CurrentDistanceMeters >= 0.f       
+            && P->CurrentDistanceMeters < MinDist)
         {
-            MaxDist = P->CurrentDistanceMeters;
+            MinDist = P->CurrentDistanceMeters;
             Winner = P;
         }
     }
 
     if (UGameInstance* GI = GetGameInstance())
     {
-        if (FNameProperty* NP =
-            CastField<FNameProperty>(GI->GetClass()->FindPropertyByName(TEXT("WinnerID"))))
+        if (FNameProperty* NP = CastField<FNameProperty>(
+            GI->GetClass()->FindPropertyByName(TEXT("WinnerID"))))
         {
-            NP->SetPropertyValue_InContainer(GI, Winner ? Winner->PlayerID : NAME_None);
+            NP->SetPropertyValue_InContainer(GI,
+                Winner ? Winner->PlayerID : NAME_None);
+			UE_LOG(LogTemp, Warning, TEXT("WinnerID = %s"), *NP->GetPropertyValue_InContainer(GI).ToString());
         }
-        if (FIntProperty* IP =
-            CastField<FIntProperty>(GI->GetClass()->FindPropertyByName(TEXT("Set_WinMoney"))))
+
+        if (FIntProperty* IP = CastField<FIntProperty>(
+            GI->GetClass()->FindPropertyByName(TEXT("Set_WinMoney"))))
         {
             IP->SetPropertyValue_InContainer(GI, 100);
+			UE_LOG(LogTemp, Warning, TEXT("Set_WinMoney = %d"), IP->GetPropertyValue_InContainer(GI));
         }
     }
 

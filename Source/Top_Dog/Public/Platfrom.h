@@ -4,7 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
-#include "Platfrom.generated.h"    // ¡coincide con el nombre del fichero!
+#include "Platfrom.generated.h"
 
 UCLASS()
 class TOP_DOG_API APlatfrom : public AActor
@@ -42,10 +42,18 @@ public:
     void OnTriggerOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
                              UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 
+    void InheritYOptions(float InLeftY, float InRightY);
+
+    bool HasValidYOptions() const;
 
     void SpawnNextPlatform();
 
     bool bHasSpawnedNext = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Platform")
+    float leftY;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Platform")
+	float rightY;
 
 
     // xoroshiro128+ para 50/50

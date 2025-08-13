@@ -20,6 +20,8 @@ public:
 
 	void OnPlayerEliminated(AChickenMan* Victim);
 
+	void NotifyPlayerFinished(AChickenMan* FinishedPawn);
+
 protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Classes")

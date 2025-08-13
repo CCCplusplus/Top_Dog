@@ -33,25 +33,40 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
+	virtual void PossessedBy(AController* NewController) override;
+
+	bool bBotActivated = false;
+	int32 BotMoveDir = 0;
+	bool bBaseSet = false;
+	bool bApplyBotAirStrafe = false;
+	FTimerHandle BotJumpHandle;
+
+
+
+	void BotActivate();
+	void BotDoJump();
+
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
-	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-	// Variables  
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Jump Settings")
-	float jumpHeight = 300.0f;
+	float jumpHeight = 750.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Jump Settings")
 	float JumpDistance = 200.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bot")
+	bool bIsBot = false;
 
 	FVector InitialCameraLocation;
 
 	float InitialCharacterZ;
 
-	//skeletal mesh
+	void SetRemainingTimeUI(int32 Seconds);
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
 	USkeletalMeshComponent* MeshComponent;
 
@@ -71,13 +86,7 @@ public:
 	UInputAction* TT_Jump;
 
 	UPROPERTY(EditAnywhere, Category = "UI")
-	TSubclassOf<UUserWidget> TimerWidgetClass; 
-
-	UPROPERTY(EditAnywhere, Category = "UI")
 	TSubclassOf<UUserWidget> HeightWidgetClass;
-
-	UPROPERTY()
-	UUserWidget* TimerWidget;
 
 	UPROPERTY()
 	UUserWidget* HeightWidget;
@@ -89,12 +98,7 @@ public:
 	UTextBlock* HeightTextBlock;
 
 	FTimerHandle     TimerHandle;
-	int32            RemainingTime = 45;
-
-	// Helpers UI
-	void UpdateTimer();                  
-	void RefreshTimerUI();               
-
+	int32            RemainingTime = 45;   
 	
 	void Move(const FInputActionValue& Value);
 	void JumpAction(const FInputActionValue& Value);

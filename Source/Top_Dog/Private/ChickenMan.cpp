@@ -68,25 +68,36 @@ void AChickenMan::BeginPlay()
 		
 	}
 
-	if (DistanceWidgetClass)
+	//set the player ID using the name of the pawn with "BPChickenMan_C_0" being "Player_1" an so forth
+	const int32 LaneIndex = GetLaneIndex();
+	if (LaneIndex > 0)
+		PlayerID = FName(*FString::Printf(TEXT("Player_%d"), LaneIndex));
+	else
+		PlayerID = FName(TEXT("None"));
+
+}
+
+void AChickenMan::PossessedBy(AController* NewController)
+{
+
+	if (APlayerController* PC = Cast<APlayerController>(NewController))
 	{
-		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		if (!DistanceWidget && DistanceWidgetClass)
 		{
-			if (DistanceWidgetClass)
+			DistanceWidget = CreateWidget<UUserWidget>(PC, DistanceWidgetClass);
+			if (ensure(DistanceWidget))
 			{
-				DistanceWidget = CreateWidget<UUserWidget>(PC, DistanceWidgetClass);
-				if (DistanceWidget)
-				{
+				DistanceWidget->AddToPlayerScreen(10);
 
-					DistanceWidget->AddToViewport(10);
-
-					DistanceTextBlock = Cast<UTextBlock>(
-						DistanceWidget->WidgetTree->FindWidget(TEXT("HeightValue")));
-				}
+				DistanceTextBlock = Cast<UTextBlock>(
+					DistanceWidget->GetWidgetFromName(TEXT("HeightValue")));
 			}
+	
 		}
 
 	}
+
+
 }
 
 // Called every frame
@@ -100,7 +111,7 @@ void AChickenMan::Tick(float DeltaTime)
 
 		UE_LOG(LogTemp, Warning, TEXT("Bot %s activated!"), *GetName());
 
-		const float Delay = FMath::FRandRange(10.f, 16.f);
+		const float Delay = FMath::FRandRange(12.f, 22.f);
 		FTimerHandle Dummy;
 		GetWorldTimerManager().SetTimer(Dummy, [this]()
 			{
@@ -160,6 +171,11 @@ void AChickenMan::TurnAction(const FInputActionValue& Value)
 	if (hasturned)
 		return;
 
+	hasturned = true;
+
+	if (AAGMChicken_Game* GM = GetWorld()->GetAuthGameMode<AAGMChicken_Game>())
+		GM->NotifyPlayerFinished(this);
+
 	FRotator RelRot = GetMesh()->GetRelativeRotation();
 
 	const float NewYaw = FMath::IsNearlyEqual(RelRot.Yaw, -90.f, 1.f)
@@ -171,8 +187,6 @@ void AChickenMan::TurnAction(const FInputActionValue& Value)
 
 	FVector Dir = GetActorForwardVector();
 	LaunchCharacter(-Dir * 400.f, true, true);
-
-	hasturned = true;
 
 	if (APawn* CrusherPawn = Cast<APawn>(CrusherActor))
 	{
@@ -192,8 +206,8 @@ void AChickenMan::TurnAction(const FInputActionValue& Value)
 
 void AChickenMan::CheckDistance(float DistM)
 {
-	if (DistM <= 0.0f)
-		Eliminate();
+	//if (DistM <= 0.0f)
+	//	Eliminate();
 
 }
 
@@ -202,7 +216,10 @@ void AChickenMan::Eliminate()
 	if (bEliminated) return;
 	bEliminated = true;
 
-	UE_LOG(LogTemp, Warning, TEXT("Eliminated!"));
+	CurrentDistanceMeters = FLT_MAX;
+
+	if (DistanceTextBlock)
+		DistanceTextBlock->SetText(FText::FromString(TEXT("XX.XX")));
 
 
 	if (APlayerController* PC = Cast<APlayerController>(GetController()))

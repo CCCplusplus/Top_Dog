@@ -3,6 +3,7 @@
 
 #include "Ultra_Jump_Boy.h"
 #include <Kismet/GameplayStatics.h>
+#include "Blueprint/WidgetTree.h"
 
 // Sets default values
 AUltra_Jump_Boy::AUltra_Jump_Boy()
@@ -26,70 +27,79 @@ AUltra_Jump_Boy::AUltra_Jump_Boy()
 
 }
 
-// Called when the game starts or when spawned
 void AUltra_Jump_Boy::BeginPlay()
 {
 	Super::BeginPlay();
 
 	SpringArm->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+	/*InitialCameraLocation = SpringArm->GetComponentLocation();
+	InitialCharacterZ = GetActorLocation().Z;*/
 
-	InitialCameraLocation = SpringArm->GetComponentLocation();
-	InitialCharacterZ = GetActorLocation().Z;
-
-	GetCharacterMovement()->JumpZVelocity = jumpHeight;
-
-	// Obtén referencia al componente de movimiento
-	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
-
-	if (MoveComp)
+	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
 	{
-		// Permite control total en el aire (0.0 = no control; 1.0 = control completo)
+		MoveComp->JumpZVelocity = jumpHeight;
 		MoveComp->AirControl = 1.0f;
-
-		// Opcional: refuerza el efecto si acelera mucho
 		MoveComp->AirControlBoostMultiplier = 1.0f;
 		MoveComp->AirControlBoostVelocityThreshold = 0.0f;
-
-		// (Bonus) Quita fricción en aire para que no desacelere
 		MoveComp->BrakingFrictionFactor = 0.0f;
 	}
+}
 
-	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+void AUltra_Jump_Boy::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+
+	if (APlayerController* PC = Cast<APlayerController>(NewController))
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem =
 			ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
 		{
-			Subsystem->AddMappingContext(DefaultMappingContext, 0);
+			if (DefaultMappingContext)
+				Subsystem->AddMappingContext(DefaultMappingContext, 0);
 		}
-	}
 
-	if (TimerWidgetClass)
-	{
-		TimerWidget = CreateWidget<UUserWidget>(GetWorld(), TimerWidgetClass);
-		if (TimerWidget)
+		if (!HeightWidget && HeightWidgetClass)
 		{
-			TimerWidget->AddToViewport();
-			TimerTextBlock = Cast<UTextBlock>(TimerWidget->GetWidgetFromName(TEXT("Timer"))); // nombre exacto en UMG
-			RefreshTimerUI();
-
-			// cada segundo
-			GetWorldTimerManager().SetTimer(TimerHandle, this, &AUltra_Jump_Boy::UpdateTimer, 1.0f, true);
+			HeightWidget = CreateWidget<UUserWidget>(PC, HeightWidgetClass);
+			if (HeightWidget)
+			{
+				HeightWidget->AddToPlayerScreen(10);
+				if (UTextBlock* HB = Cast<UTextBlock>(HeightWidget->WidgetTree->FindWidget(TEXT("HeightValue"))))
+				{
+					HeightTextBlock = HB;
+					HeightTextBlock->SetText(FText::FromString(TEXT("0.00 M")));
+				}
+			}
 		}
 	}
 
-	if (HeightWidgetClass)
+	if (bIsBot && !bBotActivated)
+		BotActivate();
+}
+
+
+
+
+void AUltra_Jump_Boy::BotActivate()
+{
+	bBotActivated = true;
+	GetWorldTimerManager().SetTimer(
+		BotJumpHandle, this, &AUltra_Jump_Boy::BotDoJump, FMath::FRandRange(0.8f, 1.4f), false);
+}
+
+void AUltra_Jump_Boy::BotDoJump()
+{
+	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
+
+	if (MoveComp && !MoveComp->IsFalling())
 	{
-		HeightWidget = CreateWidget<UUserWidget>(GetWorld(), HeightWidgetClass);
-		if (HeightWidget)
-		{
-			HeightWidget->AddToViewport();
-			HeightTextBlock = Cast<UTextBlock>(HeightWidget->GetWidgetFromName(TEXT("HeightValue"))); // nombre exacto en UMG
-			// valor inicial opcional:
-			if (HeightTextBlock)
-				HeightTextBlock->SetText(FText::FromString(TEXT("0.00 M")));
-		}
+		BotMoveDir = (FMath::FRand() < 0.5f) ? -1 : +1;
+		bApplyBotAirStrafe = true;   // activamos strafe para el ascenso de este salto
+		Jump();
 	}
-	
+
+	GetWorldTimerManager().SetTimer(
+		BotJumpHandle, this, &AUltra_Jump_Boy::BotDoJump, FMath::FRandRange(0.9f, 1.6f), false);
 }
 
 // Called every frame
@@ -97,22 +107,48 @@ void AUltra_Jump_Boy::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	float CurrentZ = GetActorLocation().Z;
-	float DeltaZ = CurrentZ - InitialCharacterZ;
+	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
 
-	// Nueva posición de la cámara: misma X/Y, pero Z adaptada
-	FVector NewCamLoc = InitialCameraLocation + FVector(0.f, 0.f, DeltaZ);
-	SpringArm->SetWorldLocation(NewCamLoc);
+	if (!bBaseSet && MoveComp && MoveComp->IsMovingOnGround())
+	{
+		InitialCharacterZ = GetActorLocation().Z;
+		InitialCameraLocation = SpringArm->GetComponentLocation();
+		bBaseSet = true;
+		if (HeightTextBlock)
+			HeightTextBlock->SetText(FText::FromString(TEXT("0.00 M")));
+	}
+
+	if (!bBaseSet) return;
+
+	const float CurrentZ = GetActorLocation().Z;
+	const float DeltaZ = CurrentZ - InitialCharacterZ;
+
+	SpringArm->SetWorldLocation(InitialCameraLocation + FVector(0.f, 0.f, DeltaZ));
 
 	if (HeightTextBlock)
 	{
-		float DeltaCm = CurrentZ - InitialCharacterZ;
-		float Meters = DeltaCm * 0.01f;
-		HeightTextBlock->SetText(
-			FText::FromString(FString::Printf(TEXT("%.2f M"), Meters))
-		);
+		const float Meters = FMath::Max(0.f, DeltaZ * 0.01f);
+		HeightTextBlock->SetText(FText::FromString(FString::Printf(TEXT("%.2f M"), Meters)));
+	}
+
+	if (bIsBot && !bBotActivated && Controller)           // respaldo por si PossessedBy no lo activó
+		BotActivate();
+
+	if (bIsBot && MoveComp)
+	{
+		if (MoveComp->IsFalling())
+		{
+			if (MoveComp->Velocity.Z > 0.f && bApplyBotAirStrafe)   // solo en ascenso
+				AddMovementInput(GetActorRightVector(), (float)BotMoveDir);
+		}
+		else
+		{
+			bApplyBotAirStrafe = false; // aterrizó
+		}
 	}
 }
+
+
 
 // Called to bind functionality to input
 void AUltra_Jump_Boy::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -128,36 +164,6 @@ void AUltra_Jump_Boy::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 		
 		EIC->BindAction(TT_Jump, ETriggerEvent::Started, this, &AUltra_Jump_Boy::JumpAction);
 	}
-}
-
-void AUltra_Jump_Boy::UpdateTimer()
-{
-	RemainingTime = FMath::Max(RemainingTime - 1, 0);
-	RefreshTimerUI();
-
-	if (RemainingTime == 0)
-	{
-		GetWorldTimerManager().ClearTimer(TimerHandle);
-		// Poner resultados aqui. 
-		// por ahora detenemos movimiento y salto
-		GetCharacterMovement()->StopMovementImmediately();
-		GetCharacterMovement()->SetMovementMode(MOVE_None);
-
-		//agregar delay de 2 segundos y cambiar de nivel a "ThirdPersonMap"
-		// utilizando,UGameplayStatics::OpenLevel()
-		FTimerHandle DelayHandle;
-		GetWorldTimerManager().SetTimer(DelayHandle, [this]()
-			{
-				UGameplayStatics::OpenLevel(this, FName("ThirdPersonMap"));
-			}, 2.0f, false);
-
-	}
-}
-
-void AUltra_Jump_Boy::RefreshTimerUI()
-{
-	if (TimerTextBlock)
-		TimerTextBlock->SetText(FText::AsNumber(RemainingTime));
 }
 
 void AUltra_Jump_Boy::Move(const FInputActionValue& Value)

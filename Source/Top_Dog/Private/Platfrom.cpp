@@ -28,12 +28,22 @@ APlatfrom::APlatfrom()
     TriggerBox->OnComponentBeginOverlap.AddDynamic(this, &APlatfrom::OnTriggerOverlapBegin);
     TriggerBox->OnComponentEndOverlap.AddDynamic(this, &APlatfrom::OnTriggerOverlapEnd);
 
-    NextYs = { 126.7512f, -167.904128f };
+	leftY = 0;
+	rightY = -294.655;
+
+    NextYs = { leftY, rightY };
 }
 
 void APlatfrom::BeginPlay()
 {
     Super::BeginPlay();
+
+    if (!HasValidYOptions())
+    {
+        const float BaseY = GetActorLocation().Y;
+        leftY = BaseY;
+        rightY = BaseY - 294.655;
+    }
 }
 
 void APlatfrom::Tick(float DeltaTime)
@@ -71,18 +81,33 @@ void APlatfrom::OnTriggerOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor*
         PlatformMesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
 }
 
+bool APlatfrom::HasValidYOptions() const
+{
+    return !FMath::IsNearlyEqual(leftY, rightY, 0.01f);
+}
+
+void APlatfrom::InheritYOptions(float InLeftY, float InRightY)
+{
+    leftY = InLeftY;
+    rightY = InRightY;
+}
+
 void APlatfrom::SpawnNextPlatform()
 {
-    if (!NextPlatformClass) return;
+    if (!NextPlatformClass || !HasValidYOptions()) return;
 
-    FVector Loc = GetActorLocation();
-    float NextZ = Loc.Z + 250.f;
-    uint64_t rnd = NextXoroshiro();
-    int idx = rnd & 1;
-    float NextY = NextYs.IsValidIndex(idx) ? NextYs[idx] : NextYs[0];
+    const FVector Loc = GetActorLocation();
+    const float   NextZ = Loc.Z + 250.f;
 
-    FVector SpawnLoc(Loc.X, NextY, NextZ);
-    GetWorld()->SpawnActor<APlatfrom>(NextPlatformClass, SpawnLoc, FRotator::ZeroRotator);
+    // SOLO dos opciones de Y: LeftY o RightY
+    const uint64_t rnd = NextXoroshiro();
+    const int idx = (int)(rnd & 1ULL);
+    const float NextY = (idx == 0) ? leftY : rightY;
+
+    const FVector SpawnLoc(Loc.X, NextY, NextZ);
+
+    if (APlatfrom* Next = GetWorld()->SpawnActor<APlatfrom>(NextPlatformClass, SpawnLoc, FRotator::ZeroRotator))
+        Next->InheritYOptions(leftY, rightY);
 }
 
 uint64_t APlatfrom::NextXoroshiro()
