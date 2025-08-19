@@ -11,7 +11,7 @@
 #include "Components/TextBlock.h"
 
 
-static int32 ReadNumPlayersFromGI(const UWorld* World)
+static int32 ReadNumPlayersFromGIJump(const UWorld* World)
 {
 	if (!World) return 1;
 	if (const UGameInstance* GI = World->GetGameInstance())
@@ -24,7 +24,7 @@ static int32 ReadNumPlayersFromGI(const UWorld* World)
 	return 1;
 }
 
-static int32 GetLaneFromStart(const AActor* A)
+static int32 GetLaneFromStartJump(const AActor* A)
 {
 	if (!A) return INDEX_NONE;
 	for (const FName& Tag : A->Tags)
@@ -52,7 +52,7 @@ void AGMUltraJump_Game::BeginPlay()
 
 	for (TActorIterator<APlayerStart> It(World); It; ++It)
 	{
-		const int32 Lane = GetLaneFromStart(*It);
+		const int32 Lane = GetLaneFromStartJump(*It);
 		if (Lane != INDEX_NONE)
 		{
 			LaneTransforms[Lane] = It->GetActorTransform();
@@ -65,7 +65,7 @@ void AGMUltraJump_Game::BeginPlay()
 			LaneTransforms[i] = FTransform(FVector(i * 300.f, 0.f, 300.f));
 	}
 
-	const int32 NumHumans = FMath::Clamp(ReadNumPlayersFromGI(World), 1, 4);
+	const int32 NumHumans = FMath::Clamp(ReadNumPlayersFromGIJump(World), 1, 4);
 	UE_LOG(LogTemp, Warning, TEXT("UltraJump NumHumans = %d"), NumHumans);
 
 	AllPlayers.Empty();
