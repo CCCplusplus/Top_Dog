@@ -162,11 +162,13 @@ void ALunker::Eliminate()
 	if (bEliminated) return;
 	bEliminated = true;
 	bBotMoving = false;
+
 	GetWorldTimerManager().ClearTimer(BotDelayHandle);
 
 	if (AController* C = GetController())
 	{
-		if (APlayerController* PC = Cast<APlayerController>(C)) DisableInput(PC);
+		if (APlayerController* PC = Cast<APlayerController>(C))
+			DisableInput(PC);
 		C->UnPossess();
 	}
 
@@ -175,12 +177,7 @@ void ALunker::Eliminate()
 
 	LaunchCharacter(FVector(0, 0, -600.f), true, false);
 
-	FTimerHandle H;
-	GetWorldTimerManager().SetTimer(H, [this]()
-		{
-			if (!IsValid(this)) return;
-			if (GetActorLocation().Z < -5000.f) Destroy();
-		}, 0.25f, true);
+	SetLifeSpan(3.0f);
 }
 
 void ALunker::LockInputs()

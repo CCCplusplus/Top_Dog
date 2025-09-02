@@ -506,12 +506,16 @@ void AColorCoded::EndMiniGame(ALunker* Winner)
 			IP->SetPropertyValue_InContainer(GI, Winner ? 100 : 0);
 	}
 
+	for (ALunker* L : AllPlayers)
+		if (IsValid(L))
+			GetWorldTimerManager().ClearAllTimersForObject(L);
+	GetWorldTimerManager().ClearAllTimersForObject(this);
+
 	FTimerHandle H;
 	GetWorldTimerManager().SetTimer(H, [this]()
 		{
 			UGameplayStatics::OpenLevel(this, BoardLevelName);
 		}, 1.5f, false);
 
-	// Desactiva más ticks
 	SetActorTickEnabled(false);
 }
