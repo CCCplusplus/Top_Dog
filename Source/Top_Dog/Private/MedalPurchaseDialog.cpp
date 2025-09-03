@@ -4,8 +4,8 @@
 #include "GameFramework/PlayerController.h"
 #include "Components/InputComponent.h"
 
-#include "UObject/UnrealType.h"  // FProperty tipos
-#include "UObject/Field.h"       // FindFProperty
+#include "UObject/UnrealType.h" 
+#include "UObject/Field.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
 #include "InputCoreTypes.h"
@@ -53,11 +53,11 @@ void UMedalPurchaseDialog::BindWidgetOnResult()
 {
 	if (!Dialog) return;
 
-	// Creamos un delegate dinámico hacia nuestra función UFUNCTION
+
 	FScriptDelegate Dyn;
 	Dyn.BindUFunction(this, GET_FUNCTION_NAME_CHECKED(UMedalPurchaseDialog, HandleDialogResult_Byte));
 
-	// 1) Propiedad delegate externa
+
 	if (FMulticastDelegateProperty* DelProp =
 		FindFProperty<FMulticastDelegateProperty>(Dialog->GetClass(), TEXT("OnResult")))
 	{
@@ -71,7 +71,7 @@ void UMedalPurchaseDialog::BindWidgetOnResult()
 		}
 	}
 
-	// 2) Propiedad inline (lo más común en Widgets BP)
+
 	if (FMulticastInlineDelegateProperty* InlineProp =
 		FindFProperty<FMulticastInlineDelegateProperty>(Dialog->GetClass(), TEXT("OnResult")))
 	{
@@ -127,7 +127,7 @@ void UMedalPurchaseDialog::EnableAnyKeyCapture()
 	TempInput->AxisBindings.Reset();
 	TempInput->KeyBindings.Reset();
 
-	const FInputChord Chord(EKeys::AnyKey, /*bShift=*/false, /*bCtrl=*/false, /*bAlt=*/false, /*bCmd=*/false);
+	const FInputChord Chord(EKeys::AnyKey, false, false, false, false);
 	FInputKeyBinding AnyKey(Chord, IE_Pressed);
 	AnyKey.bConsumeInput = false;
 	AnyKey.KeyDelegate.GetDelegateForManualSet()
@@ -153,7 +153,7 @@ void UMedalPurchaseDialog::OnAnyKeyPressed()
 	case EMedalDialogPhase::ShowingCongrats:
 	case EMedalDialogPhase::ShowingFinalYes:
 	case EMedalDialogPhase::ShowingFinalNo:
-		HandleDialogResult_Byte(0); // OK
+		HandleDialogResult_Byte(0);
 		break;
 	default:
 		break;
@@ -180,7 +180,7 @@ void UMedalPurchaseDialog::StopAutoCloseTimer()
 
 void UMedalPurchaseDialog::AutoCloseNow()
 {
-	HandleDialogResult_Byte(0); // OK
+	HandleDialogResult_Byte(0);
 }
 
 void UMedalPurchaseDialog::HandleDialogResult_Byte(uint8 Result)
@@ -196,8 +196,8 @@ void UMedalPurchaseDialog::HandleDialogResult_Byte(uint8 Result)
 		break;
 
 	case EMedalDialogPhase::AskingYesNo:
-		if (Result == 1)      GoTo_FinalYes(); // YES
-		else if (Result == 2) GoTo_FinalNo();  // NO
+		if (Result == 1)      GoTo_FinalYes(); 
+		else if (Result == 2) GoTo_FinalNo();
 		break;
 
 	case EMedalDialogPhase::ShowingFinalYes:
@@ -217,7 +217,7 @@ void UMedalPurchaseDialog::GoTo_NotEnough()
 	Phase = EMedalDialogPhase::ShowingNotEnough;
 	bBought = false;
 
-	BP_OpenMessage(NotEnoughMoneyText, /*ShowChoices=*/false);
+	BP_OpenMessage(NotEnoughMoneyText, false);
 	EnableAnyKeyCapture();
 	StartAutoCloseTimer();
 }
@@ -227,7 +227,7 @@ void UMedalPurchaseDialog::GoTo_Congrats()
 	Phase = EMedalDialogPhase::ShowingCongrats;
 	bBought = false;
 
-	BP_OpenMessage(CongratsText, /*ShowChoices=*/false);
+	BP_OpenMessage(CongratsText, false);
 	EnableAnyKeyCapture();
 	StartAutoCloseTimer();
 }
@@ -238,7 +238,7 @@ void UMedalPurchaseDialog::GoTo_Question()
 
 	DisableAnyKeyCapture();
 	StopAutoCloseTimer();
-	BP_OpenMessage(QuestionText, /*ShowChoices=*/true);
+	BP_OpenMessage(QuestionText, true);
 
 	if (bIsBotMode)
 	{
@@ -247,7 +247,7 @@ void UMedalPurchaseDialog::GoTo_Question()
 			FTimerHandle Tmp;
 			W->GetTimerManager().SetTimer(
 				Tmp, FTimerDelegate::CreateUObject(this, &UMedalPurchaseDialog::BP_CallOnResult, (uint8)1),
-				0.05f, false); // auto YES
+				0.05f, false);
 		}
 	}
 }
@@ -257,7 +257,7 @@ void UMedalPurchaseDialog::GoTo_FinalYes()
 	Phase = EMedalDialogPhase::ShowingFinalYes;
 	bBought = true;
 
-	BP_OpenMessage(FinalYesText, /*ShowChoices=*/false);
+	BP_OpenMessage(FinalYesText, false);
 	EnableAnyKeyCapture();
 	StartAutoCloseTimer();
 }
@@ -267,7 +267,7 @@ void UMedalPurchaseDialog::GoTo_FinalNo()
 	Phase = EMedalDialogPhase::ShowingFinalNo;
 	bBought = false;
 
-	BP_OpenMessage(FinalNoText, /*ShowChoices=*/false);
+	BP_OpenMessage(FinalNoText, false);
 	EnableAnyKeyCapture();
 	StartAutoCloseTimer();
 }
