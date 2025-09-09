@@ -46,7 +46,7 @@ public:
 	float RiseTimeStep = 0.15f;
 
 	UPROPERTY(EditAnywhere, Category = "Round")
-	float HoldTime = 1.0f;
+	float HoldTime = 3.0f;
 
 	UPROPERTY(EditAnywhere, Category = "Round")
 	float BetweenRoundsDelay = 0.5f;

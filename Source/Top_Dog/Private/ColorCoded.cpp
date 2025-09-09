@@ -320,6 +320,8 @@ void AColorCoded::SetBillboardsTo(uint8 Type)
 
 	for (AActor* B : Billboards)
 	{
+		if (!IsValid(B)) continue;
+
 		WriteEnumOnActor(B, *NameA.ToString(), *NameB.ToString(), Type);
 		WriteEnumOnActor(B, *NameC.ToString(), *NameB.ToString(), Type);
 
@@ -329,12 +331,19 @@ void AColorCoded::SetBillboardsTo(uint8 Type)
 			B->ProcessEvent(Fn, &Params);
 		}
 
+
 		B->MarkComponentsRenderStateDirty();
+		B->ReregisterAllComponents();
 		B->ForceNetUpdate();
 
-		B->RerunConstructionScripts();
+#if WITH_EDITOR
+		if (GIsEditor)
+			B->RerunConstructionScripts();
+		
+#endif
 	}
 }
+
 
 
 

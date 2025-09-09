@@ -40,6 +40,8 @@ protected:
 
 	virtual void PossessedBy(AController* NewController) override;
 
+	virtual void UnPossessed() override;
+
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
@@ -80,11 +82,13 @@ public:
 
 
 	UPROPERTY()
-	UUserWidget* DistanceWidget;
+	UUserWidget* DistanceWidget = nullptr;
 
 
 	UPROPERTY()
-	UTextBlock* DistanceTextBlock;
+	UTextBlock* DistanceTextBlock = nullptr;
+
+	FTimerHandle BotTurnHandle;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	bool bIsBot = false;
@@ -97,10 +101,10 @@ public:
 
 	void TurnAction(const FInputActionValue& Value);
 
-	void CheckDistance(float DistM);
-
 	UFUNCTION(BlueprintCallable, Category = "State")
 	void Eliminate();
+
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	APawn* FindNearestCrusherPawn() const;
 

@@ -9,7 +9,6 @@
 // Sets default values
 AChickenMan::AChickenMan()
 {
- 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
 	hasturned = false;
@@ -23,7 +22,6 @@ AChickenMan::AChickenMan()
 	SpringArm->SetupAttachment(RootComponent);
 	SpringArm->TargetArmLength = -300.0f;
 	SpringArm->bUsePawnControlRotation = false;
-	//the spring Arm should not rotate with the camera
 	SpringArm->bInheritPitch = false;
 	SpringArm->bInheritRoll = false;
 	SpringArm->bInheritYaw = false;
@@ -59,15 +57,6 @@ void AChickenMan::BeginPlay()
 	
 	activated = false;
 
-	if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
-	{
-		// add Enhanced Input mapping context
-		if (UEnhancedInputLocalPlayerSubsystem* Subsys =
-			ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
-			Subsys->AddMappingContext(DefaultMappingContext, 0);
-		
-	}
-
 	//set the player ID using the name of the pawn with "BPChickenMan_C_0" being "Player_1" an so forth
 	const int32 LaneIndex = GetLaneIndex();
 	if (LaneIndex > 0)
@@ -79,25 +68,39 @@ void AChickenMan::BeginPlay()
 
 void AChickenMan::PossessedBy(AController* NewController)
 {
+	Super::PossessedBy(NewController);
 
 	if (APlayerController* PC = Cast<APlayerController>(NewController))
 	{
+		if (UEnhancedInputLocalPlayerSubsystem* Subsys =
+			ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
+		{
+			if (DefaultMappingContext)
+				Subsys->AddMappingContext(DefaultMappingContext, 0);
+		}
+
 		if (!DistanceWidget && DistanceWidgetClass)
 		{
 			DistanceWidget = CreateWidget<UUserWidget>(PC, DistanceWidgetClass);
-			if (ensure(DistanceWidget))
+			if (DistanceWidget)
 			{
 				DistanceWidget->AddToPlayerScreen(10);
-
 				DistanceTextBlock = Cast<UTextBlock>(
 					DistanceWidget->GetWidgetFromName(TEXT("HeightValue")));
 			}
-	
 		}
-
 	}
+}
 
+void AChickenMan::UnPossessed()
+{
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		if (UEnhancedInputLocalPlayerSubsystem* Subsys =
+			ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
+			if (DefaultMappingContext)
+				Subsys->RemoveMappingContext(DefaultMappingContext);
 
+	Super::UnPossessed();
 }
 
 // Called every frame
@@ -109,16 +112,20 @@ void AChickenMan::Tick(float DeltaTime)
 	{
 		activated = true;
 
-		UE_LOG(LogTemp, Warning, TEXT("Bot %s activated!"), *GetName());
+		const float Delay = FMath::FRandRange(12.0f, 22.0f);
 
-		const float Delay = FMath::FRandRange(12.f, 22.f);
-		FTimerHandle Dummy;
-		GetWorldTimerManager().SetTimer(Dummy, [this]()
-			{
-				if (!hasturned)
-					TurnAction(FInputActionValue());
-			},
-			Delay, false);
+		GetWorldTimerManager().ClearTimer(BotTurnHandle);
+
+		GetWorldTimerManager().SetTimer(
+			BotTurnHandle,
+			FTimerDelegate::CreateWeakLambda(this, [this]()
+				{
+					if (!hasturned)
+						TurnAction(FInputActionValue());
+				}),
+			Delay,
+			false
+		);
 	}
 
 	if (!DistanceTextBlock || !CrusherActor || bEliminated)
@@ -148,9 +155,6 @@ void AChickenMan::Tick(float DeltaTime)
 	DistanceTextBlock->SetText(FText::AsNumber(Rounded));
 
 	CurrentDistanceMeters = DistM;
-	CheckDistance(DistM);
-
-	
 }
 
 // Called to bind functionality to input
@@ -168,12 +172,14 @@ void AChickenMan::SetupPlayerInputComponent(UInputComponent* PlayerInputComponen
 
 void AChickenMan::TurnAction(const FInputActionValue& Value)
 {
-	if (hasturned)
-		return;
+	if (hasturned) return;
+
+	UWorld* W = GetWorld();
+	if (!W || W->bIsTearingDown) return;
 
 	hasturned = true;
 
-	if (AAGMChicken_Game* GM = GetWorld()->GetAuthGameMode<AAGMChicken_Game>())
+	if (AAGMChicken_Game* GM = W->GetAuthGameMode<AAGMChicken_Game>())
 		GM->NotifyPlayerFinished(this);
 
 	FRotator RelRot = GetMesh()->GetRelativeRotation();
@@ -195,26 +201,15 @@ void AChickenMan::TurnAction(const FInputActionValue& Value)
 				BB->SetValueAsBool(TEXT("StopMoving"), true);
 	}
 
-
-	//FTimerHandle DelayHandle;
-	//GetWorldTimerManager().SetTimer(DelayHandle, [this]()
-	//	{
-	//		UGameplayStatics::OpenLevel(this, FName("ThirdPersonMap"));
-	//	}, 2.0f, false);
-
-}
-
-void AChickenMan::CheckDistance(float DistM)
-{
-	//if (DistM <= 0.0f)
-	//	Eliminate();
-
 }
 
 void AChickenMan::Eliminate()
 {
 	if (bEliminated) return;
+	if (bEliminated) return;
 	bEliminated = true;
+
+	GetWorldTimerManager().ClearTimer(BotTurnHandle);
 
 	CurrentDistanceMeters = FLT_MAX;
 
@@ -271,6 +266,20 @@ void AChickenMan::Eliminate()
 	}
 }
 
+void AChickenMan::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	GetWorldTimerManager().ClearTimer(BotTurnHandle);
+
+	if (DistanceWidget)
+	{
+		DistanceWidget->RemoveFromParent();
+		DistanceWidget = nullptr;
+		DistanceTextBlock = nullptr;
+	}
+
+	Super::EndPlay(EndPlayReason);
+}
+
 APawn* AChickenMan::FindNearestCrusherPawn() const
 {
 	const int32 Lane = GetLaneIndex();
@@ -302,6 +311,3 @@ int32 AChickenMan::GetLaneIndex() const
 	}
 	return 0;
 }
-
-
-

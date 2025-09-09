@@ -195,11 +195,21 @@ void ALunker::LockInputs()
 
 bool ALunker::HasCollisionDisabled() const
 {
-	if (const UCapsuleComponent* Cap = GetCapsuleComponent())
+	// Si el actor ya se está destruyendo, considéralo como "sin colisión"
+	if (!IsValid(this) || IsActorBeingDestroyed())
 	{
-		return Cap->GetCollisionEnabled() == ECollisionEnabled::NoCollision;
+		return true;
 	}
-	return true;
+
+	const UCapsuleComponent* Capsule = GetCapsuleComponent();
+	// Si no hay cápsula (o ya desapareció), considera “deshabilitado” para no crashear
+	if (!IsValid(Capsule))
+	{
+		return true;
+	}
+
+	const ECollisionEnabled::Type Collision = Capsule->GetCollisionEnabled();
+	return (Collision == ECollisionEnabled::NoCollision);
 }
 
 
